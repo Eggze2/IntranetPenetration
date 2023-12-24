@@ -10,7 +10,6 @@
 #define new DEBUG_NEW
 #endif
 
-
 // 唯一的应用程序对象
 
 CWinApp theApp;
@@ -50,6 +49,7 @@ int main()
                     MessageBox(NULL, _T("无法正常接入用户，自动重试"), _T("接入用户失败！"), MB_OK | MB_ICONERROR);
                 }
                 int ret = pServer->DealCommand();
+                // TODO: 
             }
         }
     }
