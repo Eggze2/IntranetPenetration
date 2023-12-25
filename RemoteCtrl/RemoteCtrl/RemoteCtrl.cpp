@@ -6,6 +6,7 @@
 #include "RemoteCtrl.h"
 #include "ServerSocket.h"
 #include <direct.h>
+#include <atlimage.h>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -245,6 +246,43 @@ int MouseEvent() {
     return 0;
 }
 
+int SendScreen() {
+    CImage screen;  // GDI+  GDI+是微软公司开发的一套图形处理类库，它是对GDI的封装，使用起来更加方便
+    HDC hScreen = ::GetDC(NULL);
+    int nBitPerPixel = GetDeviceCaps(hScreen, BITSPIXEL);
+    int nWidth = GetDeviceCaps(hScreen, HORZRES);
+    int nHeight = GetDeviceCaps(hScreen, VERTRES);
+    screen.Create(nWidth, nHeight, nBitPerPixel);
+    BitBlt(screen.GetDC(), 0, 0, nWidth, nHeight - 65, hScreen, 0, 0, SRCCOPY);
+    ReleaseDC(NULL, hScreen);
+    HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, 0);
+    if (hMem == NULL) return -1;
+    IStream* pStream = NULL;
+    HRESULT ret = CreateStreamOnHGlobal(hMem, TRUE, &pStream);
+    if (ret == S_OK) {
+        screen.Save(pStream, Gdiplus::ImageFormatPNG);
+        LARGE_INTEGER bg = { 0 };
+        pStream->Seek(bg ,STREAM_SEEK_SET, NULL);
+        PBYTE pData = (PBYTE)GlobalLock(hMem);
+        SIZE_T nSize = GlobalSize(hMem);
+        CPacket pack(6, pData, nSize);
+        CServerSocket::getInstance()->Send(pack);
+        GlobalUnlock(hMem);
+    }
+    /*
+        DWORD tick = GetTickCount64();
+        screen.Save(_T("test2023.png"), Gdiplus::ImageFormatPNG);
+        TRACE("png %d\r\n", GetTickCount64() - tick);
+        tick = GetTickCount64();
+        screen.Save(_T("test2023.jpg"), Gdiplus::ImageFormatJPEG);
+        TRACE("jpg %d\r\n",GetTickCount64() - tick);
+    */
+    pStream->Release();
+    GlobalFree(hMem);
+    screen.ReleaseDC();
+    return 0;
+}
+
 int main()
 {
     int nRetCode = 0;
@@ -280,7 +318,7 @@ int main()
              //           int ret = pServer->DealCommand();
              //           // TODO: 
              //       }
-            int nCmd = 1;
+            int nCmd = 6;
             switch (nCmd)
             {
             case 1: // 查看驱动器信息
@@ -298,7 +336,11 @@ int main()
             case 5: // 鼠标操作
                 MouseEvent();
                 break;
+            case 6: // 发送屏幕内容-->发送屏幕的截图
+                SendScreen();
+                break;
             }
+
         }
     }
     else
