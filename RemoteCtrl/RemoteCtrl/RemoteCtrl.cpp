@@ -21,13 +21,13 @@ void Dump(BYTE* pData, size_t nSize) {
     std::string strOut;
     for (size_t i = 0; i < nSize; i++) {
         char buf[8] = "";
-        if (i > 0 && i % 16 == 0) {
-			strOut += '\n';
-		}
+        if (i > 0 && (i % 16 == 0)) {
+            strOut += "\n";
+        }
         snprintf(buf, sizeof(buf), "%02X ", pData[i] & 0xFF);
         strOut += buf;
     }
-    strOut += '\n';
+    strOut += "\n";
     OutputDebugStringA(strOut.c_str());
 }
 
@@ -41,8 +41,64 @@ int MakeDriverInfo() {  // 1-->A, 2-->B, 3-->C, ... 26-->Z
         }
     }
     CPacket pack(1, (BYTE*)result.c_str(), result.size());
-    Dump((BYTE*)pack.Data(),pack.Size());
+    Dump((BYTE*)pack.Data(), pack.Size());
     //CServerSocket::getInstance()->Send(pack);
+    return 0;
+}
+
+#include <stdio.h>
+#include <io.h>
+#include <list>
+typedef struct file_info{
+    file_info() {
+        IsInvalid = FALSE;
+        IsDirectory = -1;
+        HasNext = TRUE;
+        memset(szFileName, 0, sizeof(szFileName));
+    }
+    BOOL IsInvalid;    // 是否有效 0 无效 1 有效
+    BOOL IsDirectory;   // 是否是目录 0 否 1 是
+    BOOL HasNext;       // 是否有下一个文件 0 否 1 是
+    char szFileName[256]; // 文件名
+}FILEINFO, *PFILEINFO;
+
+int MakeDirectoryInfo() {
+    std::string strPath;
+    //std::list<FILEINFO> lstFileInfos;
+    if (CServerSocket::getInstance()->GetFilePath(strPath) == false) {
+        OutputDebugString(_T("当前的命令，不是获取文件列表，命令解析错误！"));
+        return -1;
+    }
+    if (_chdir(strPath.c_str()) != 0) {
+        FILEINFO finfo;
+        finfo.IsInvalid = TRUE;
+        finfo.IsDirectory = TRUE;
+        finfo.HasNext = FALSE;
+        memcpy(finfo.szFileName, strPath.c_str(), strPath.size());
+        //lstFileInfos.push_back(finfo);
+        CPacket pack(2, (BYTE*)&finfo, sizeof(finfo));
+        CServerSocket::getInstance()->Send(pack);
+        OutputDebugString(_T("没有权限访问目录！"));
+        return -2;
+    }
+    _finddata_t fdata;
+    int hfind = 0;
+    if ((hfind = _findfirst("*", &fdata)) == -1) {
+        OutputDebugString(_T("没有找到任何文件！"));
+        return -3;
+    }
+    do {
+        FILEINFO finfo;
+        finfo.IsDirectory = (fdata.attrib & _A_SUBDIR) != 0;
+        memcpy(finfo.szFileName, fdata.name, strlen(fdata.name));
+        //lstFileInfos.push_back(finfo);
+        CPacket pack(2, (BYTE*)&finfo, sizeof(finfo));
+        CServerSocket::getInstance()->Send(pack);
+	} while (!_findnext(hfind, &fdata));
+    FILEINFO finfo;
+    finfo.HasNext = FALSE;
+    CPacket pack(2, (BYTE*)&finfo, sizeof(finfo));
+    CServerSocket::getInstance()->Send(pack);
     return 0;
 }
 
@@ -84,8 +140,11 @@ int main()
             int nCmd = 1;
             switch (nCmd)
             {
-            case 1:
+            case 1: // 查看驱动器信息
                 MakeDriverInfo();
+                break;
+            case 2: // 查看指定目录下的文件
+                MakeDirectoryInfo();
                 break;
             default:
                 break;

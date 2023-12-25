@@ -3,8 +3,8 @@
 #include "pch.h"
 #include "framework.h"
 
-#pragma packet(push)
-#pragma packet(1)
+#pragma pack(push)
+#pragma pack(1)
 class CPacket
 {
 public:
@@ -95,7 +95,7 @@ public:
 	WORD sSum;	// 和校验
 	std::string strOut;	// 整个包的数据
 };
-#pragma packet(pop)
+#pragma pack(pop)
 
 class CServerSocket
 {
@@ -178,6 +178,14 @@ public:
 			return false;
 		}
 		return send(m_client, packet.Data(), packet.Size(), 0) > 0;
+	}
+
+	bool GetFilePath(std::string & strPath) {
+		if (m_packet.sCmd == 2) {
+			strPath = m_packet.strData;
+			return true;
+		}
+		return false;
 	}
 private:
 	SOCKET m_client;
