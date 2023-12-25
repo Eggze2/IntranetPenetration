@@ -13,19 +13,24 @@ public:
 		sHead = 0xFEFF;
 		nLength = nLength + 4;
 		sCmd = nCmd;
-		strData.resize(nSize);
-		memcpy((void*)strData.c_str(), pData, nSize);
+		if (nSize > 0) {
+			strData.resize(nSize);
+			memcpy((void*)strData.c_str(), pData, nSize);
+		}
+		else {
+			strData.clear();
+		}
 		sSum = 0;
 		for (size_t j = 0; j < strData.size(); j++) {
 			sSum += BYTE(strData[j]) & 0xFF;
 		}
 	}
-	CPacket(const CPacket& packet) {
-		sHead = packet.sHead;
-		nLength = packet.nLength;
-		sCmd = packet.sCmd;
-		strData = packet.strData;
-		sSum = packet.sSum;
+	CPacket(const CPacket& pack) {
+		sHead = pack.sHead;
+		nLength = pack.nLength;
+		sCmd = pack.sCmd;
+		strData = pack.strData;
+		sSum = pack.sSum;
 	}
 	CPacket(const BYTE* pData, size_t& nSize) {
 		size_t i = 0;
@@ -63,13 +68,13 @@ public:
 		nSize = 0;
 	}
 	~CPacket() {}
-	CPacket& operator=(const CPacket& packet) {
-		if (this != &packet) {
-			sHead = packet.sHead;
-			nLength = packet.nLength;
-			sCmd = packet.sCmd;
-			strData = packet.strData;
-			sSum = packet.sSum;
+	CPacket& operator=(const CPacket& pack) {
+		if (this != &pack) {
+			sHead = pack.sHead;
+			nLength = pack.nLength;
+			sCmd = pack.sCmd;
+			strData = pack.strData;
+			sSum = pack.sSum;
 		}
 		return *this;
 	}
@@ -79,10 +84,10 @@ public:
 	const char* Data() {
 		strOut.resize(nLength + 6);
 		BYTE* pData = (BYTE*)strOut.c_str();
-		*(WORD*)pData = sHead;	pData += 2;
-		*(DWORD*)(pData) = nLength;	pData += 4;
-		*(WORD*)pData = sCmd;		pData += 2;
-		memcpy(pData, strData.c_str(), strData.size());	pData += strData.size();
+		*(WORD*)pData = sHead; pData += 2;
+		*(DWORD*)(pData) = nLength; pData += 4;
+		*(WORD*)pData = sCmd;	 pData += 2;
+		memcpy(pData, strData.c_str(), strData.size()); pData += strData.size();
 		*(WORD*)pData = sSum;
 		return strOut.c_str();
 	}
@@ -173,15 +178,15 @@ public:
 		return send(m_client, pData, nSize, 0) > 0;
 		
 	}
-	bool Send(CPacket& packet) {
+	bool Send(CPacket& pack) {
 		if (m_client == INVALID_SOCKET) {
 			return false;
 		}
-		return send(m_client, packet.Data(), packet.Size(), 0) > 0;
+		return send(m_client, pack.Data(), pack.Size(), 0) > 0;
 	}
 
 	bool GetFilePath(std::string & strPath) {
-		if (m_packet.sCmd == 2) {
+		if ((m_packet.sCmd >= 2) && (m_packet.sCmd <= 4)) {
 			strPath = m_packet.strData;
 			return true;
 		}
