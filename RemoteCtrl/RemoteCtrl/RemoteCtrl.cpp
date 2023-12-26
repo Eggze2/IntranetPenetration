@@ -112,6 +112,7 @@ int RunFile() {
     CServerSocket::getInstance()->Send(pack);
     return 0;
 }
+
 int DownloadFile() {
     std::string strPath;
     CServerSocket::getInstance()->GetFilePath(strPath);
@@ -283,6 +284,69 @@ int SendScreen() {
     return 0;
 }
 
+#include "LockDialog.h"
+CLockDialog dig;
+unsigned threadId = 0;
+
+unsigned __stdcall threadLockDlg(void* arg) {
+    TRACE("%s(%d): %d\r\n", __FUNCTION__, __LINE__, GetCurrentThreadId());
+    dig.Create(IDD_DIALOG_INFO, NULL);
+    dig.ShowWindow(SW_SHOW);
+    CRect rect;
+    rect.left = 0;
+    rect.top = 0;
+    rect.right = GetSystemMetrics(SM_CXFULLSCREEN);
+    rect.bottom = GetSystemMetrics(SM_CYFULLSCREEN);
+    rect.bottom *= 1.04;
+    dig.MoveWindow(rect);
+    dig.SetWindowPos(&dig.wndTopMost, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+    // 限制鼠标功能
+    ShowCursor(false);
+    // 隐藏任务栏
+    ::ShowWindow(::FindWindow(_T("Shell_TrayWnd"), NULL), SW_HIDE);
+    //dig.GetWindowRect(rect);
+    // 限制鼠标移动范围
+    rect.left = 0;
+    rect.top = 0;
+    rect.right = 1;
+    rect.bottom = 1;
+    ClipCursor(rect);
+    MSG msg;
+    while (GetMessage(&msg, NULL, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+        if (msg.message == WM_KEYDOWN) {
+            //TRACE("msg:%08X wparam:%08X lparam:%08X\r\n", msg.message, msg.wParam, msg.lParam);
+            if (msg.wParam == 0x41) {   // 按下a键退出
+                break;
+            }
+        }
+    }
+    ShowCursor(true);
+    ::ShowWindow(::FindWindow(_T("Shell_TrayWnd"), NULL), SW_SHOW);
+    dig.DestroyWindow();
+    _endthreadex(0);
+    return 0;
+}
+
+int LockMachine() {
+    if ((dig.m_hWnd == NULL) || (dig.m_hWnd == INVALID_HANDLE_VALUE)) {
+        //_beginthread(threadLockDlg, 0, NULL);     
+        _beginthreadex(NULL, 0, threadLockDlg, NULL, 0, &threadId);
+        TRACE("threadId:%08X\r\n", threadId);
+    }
+    CPacket pack(7, NULL, 0);
+    CServerSocket::getInstance()->Send(pack);
+    return 0;
+}
+
+int UnlockMachine() {
+    PostThreadMessage(threadId, WM_KEYDOWN, 0x41, 0x01E0001);
+    CPacket pack(8, NULL, 0);
+    CServerSocket::getInstance()->Send(pack);
+    return 0;
+}
+
 int main()
 {
     int nRetCode = 0;
@@ -318,7 +382,7 @@ int main()
              //           int ret = pServer->DealCommand();
              //           // TODO: 
              //       }
-            int nCmd = 6;
+            int nCmd = 7;
             switch (nCmd)
             {
             case 1: // 查看驱动器信息
@@ -339,8 +403,21 @@ int main()
             case 6: // 发送屏幕内容-->发送屏幕的截图
                 SendScreen();
                 break;
+            case 7: // 锁机
+                LockMachine();
+                //Sleep(50);
+                //LockMachine();
+                break;
+            case 8: // 解锁
+                UnlockMachine();
+                break;
             }
-
+            Sleep(3000);
+            UnlockMachine();
+            TRACE("m_hWnd = %08X\r\n", dig.m_hWnd);
+            while (dig.m_hWnd != NULL) {
+				Sleep(10);
+			}
         }
     }
     else
