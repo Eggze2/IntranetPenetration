@@ -2,6 +2,7 @@
 
 #include "pch.h"
 #include "framework.h"
+#include <iomanip>
 
 #pragma pack(push)
 #pragma pack(1)
@@ -26,6 +27,7 @@ public:
 		}
 	}
 	CPacket(const CPacket& pack) {
+
 		sHead = pack.sHead;
 		nLength = pack.nLength;
 		sCmd = pack.sCmd;
@@ -37,11 +39,12 @@ public:
 		for (; i < nSize; i++) {
 			if (*(WORD*)(pData + i) == 0xFEFF) {
 				sHead = *(WORD*)(pData + i);
-				i += 2;
+				i += 2;	// 防止只有包头后面没有内容的特殊情况，此情况下i加后会大于nSize被返回
 				break;
 			}
 		}
-		if (i + 4 + 2 + 2 > nSize) {	// 包未完全接受到或包数据不全，解析失败返回
+		if (i + 8 > nSize) {	// 包未完全接受到或包数据不全，解析失败返回
+			// 8 为 (4 + 2 + 2) 有 lenth + command + sum, data 另外算
 			nSize = 0;
 			return;
 		}
@@ -52,9 +55,9 @@ public:
 		}
 		sCmd = *(WORD*)(pData + i);	i += 2;
 		if (nLength > 4) {
-			strData.resize(nLength - 2 - 2);
-			memcpy((void*)strData.c_str(), pData + i, nLength - 2 - 2);	
-			i += nLength - 2 - 2;	// 始终让i指向校验和
+			strData.resize(nLength - 4);
+			memcpy((void*)strData.c_str(), pData + i, nLength - 4);	
+			i += nLength - 4;	// 始终让i指向校验和
 		}
 		sSum = *(WORD*)(pData + i);	i += 2;
 		WORD sum = 0;
@@ -78,9 +81,11 @@ public:
 		}
 		return *this;
 	}
+
 	int Size() {	//包数据的大小
 		return nLength + 6;
 	}
+
 	const char* Data() {
 		strOut.resize(nLength + 6);
 		BYTE* pData = (BYTE*)strOut.c_str();
@@ -148,27 +153,33 @@ public:
 		return true;
 	}
 	bool AcceptClient() {
+		TRACE("Enter AcceptClient\r\n");
 		sockaddr_in client_addr;
 		int client_size = sizeof(client_addr);
 		m_client = accept(m_socket, (SOCKADDR*)&client_addr, &client_size);
-		if (m_client == INVALID_SOCKET)
-		{
-			wprintf(L"客户端连接失败\n");
-			return false;
-		}
+		TRACE("m_client = %d\r\n", m_client);
+		if (m_client == -1) return false;
 		return true;
 	}
 #define BUFFER_SIZE 4096
 	int DealCommand() {
-		if (m_client == INVALID_SOCKET) {
+		if (m_client == -1) {
 			return -1;
 		}
 		char* buffer = new char[BUFFER_SIZE];
+		if (buffer == NULL)	//防止创建失败
+		{
+			TRACE("内存不足，buffer创建失败！");
+			delete[] buffer;	//释放buffer
+			return -2;
+		}
 		memset(buffer, 0, BUFFER_SIZE);
 		size_t index = 0;
 		while (true) {
 			size_t len = recv(m_client, buffer + index, BUFFER_SIZE - index, 0);
+			TRACE("recv len = %d\r\n", len);
 			if (len <= 0) {
+				delete[] buffer;
 				return -1;
 			}
 			index += len;
@@ -177,9 +188,11 @@ public:
 			if (len > 0) {
 				memmove(buffer, buffer + len, BUFFER_SIZE - len);
 				index -= len;
+				delete[] buffer;
 				return m_packet.sCmd;
 			}
 		}
+		delete[] buffer;
 		return -1;
 	}
 
@@ -211,6 +224,15 @@ public:
 			return true;
 		}
 		return false;
+	}
+
+	CPacket& GetPacket() {
+		return m_packet;
+	}
+
+	void CloseClient() {
+		closesocket(m_client);
+		m_client = INVALID_SOCKET;
 	}
 private:
 	SOCKET m_client;

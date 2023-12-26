@@ -175,7 +175,7 @@ int MouseEvent() {
             nFlags |= 0x40;
             break;
         case 3: // 弹起
-            nFlags = 0x80;
+            nFlags |= 0x80;
             break;
         default:
 			break;
@@ -237,8 +237,8 @@ int MouseEvent() {
                 mouse_event(MOUSEEVENTF_MOVE, mouse.ptXY.x, mouse.ptXY.y, 0, GetMessageExtraInfo());
                 break;
         }
-        CPacket pack(5, NULL, 0);
-        CServerSocket::getInstance()->Send(pack);
+        /*CPacket pack(4, NULL, 0);
+        CServerSocket::getInstance()->Send(pack);*/
     }
     else {
         OutputDebugString(_T("获取鼠标参数失败！"));
@@ -285,26 +285,26 @@ int SendScreen() {
 }
 
 #include "LockDialog.h"
-CLockDialog dig;
+CLockDialog dlg;
 unsigned threadId = 0;
 
 unsigned __stdcall threadLockDlg(void* arg) {
     TRACE("%s(%d): %d\r\n", __FUNCTION__, __LINE__, GetCurrentThreadId());
-    dig.Create(IDD_DIALOG_INFO, NULL);
-    dig.ShowWindow(SW_SHOW);
+    dlg.Create(IDD_DIALOG_INFO, NULL);
+    dlg.ShowWindow(SW_SHOW);
     CRect rect;
     rect.left = 0;
     rect.top = 0;
     rect.right = GetSystemMetrics(SM_CXFULLSCREEN);
     rect.bottom = GetSystemMetrics(SM_CYFULLSCREEN);
     rect.bottom *= 1.04;
-    dig.MoveWindow(rect);
-    dig.SetWindowPos(&dig.wndTopMost, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+    dlg.MoveWindow(rect);
+    dlg.SetWindowPos(&dlg.wndTopMost, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
     // 限制鼠标功能
     ShowCursor(false);
     // 隐藏任务栏
     ::ShowWindow(::FindWindow(_T("Shell_TrayWnd"), NULL), SW_HIDE);
-    //dig.GetWindowRect(rect);
+    //dlg.GetWindowRect(rect);
     // 限制鼠标移动范围
     rect.left = 0;
     rect.top = 0;
@@ -324,13 +324,13 @@ unsigned __stdcall threadLockDlg(void* arg) {
     }
     ShowCursor(true);
     ::ShowWindow(::FindWindow(_T("Shell_TrayWnd"), NULL), SW_SHOW);
-    dig.DestroyWindow();
+    dlg.DestroyWindow();
     _endthreadex(0);
     return 0;
 }
 
 int LockMachine() {
-    if ((dig.m_hWnd == NULL) || (dig.m_hWnd == INVALID_HANDLE_VALUE)) {
+    if ((dlg.m_hWnd == NULL) || (dlg.m_hWnd == INVALID_HANDLE_VALUE)) {
         //_beginthread(threadLockDlg, 0, NULL);     
         _beginthreadex(NULL, 0, threadLockDlg, NULL, 0, &threadId);
         TRACE("threadId:%08X\r\n", threadId);
@@ -342,9 +342,51 @@ int LockMachine() {
 
 int UnlockMachine() {
     PostThreadMessage(threadId, WM_KEYDOWN, 0x41, 0x01E0001);
+    TRACE("threadId = %d\r\n", threadId);
     CPacket pack(8, NULL, 0);
     CServerSocket::getInstance()->Send(pack);
     return 0;
+}
+
+int TestConnect() {
+	CPacket pack(1981, NULL, 0);
+	bool ret = CServerSocket::getInstance()->Send(pack);
+    TRACE("Send ret = %d\r\n", ret);
+	return 0;
+}
+
+int ExcuteCommand(int nCmd) {
+    int ret = 0;
+    switch (nCmd) {
+    case 1: // 查看驱动器信息
+        ret = MakeDriverInfo();
+        break;
+    case 2: // 查看指定目录下的文件
+        ret = MakeDirectoryInfo();
+        break;
+    case 3: // 打开指定文件
+        ret = RunFile();
+        break;
+    case 4: // 下载指定文件
+        ret = DownloadFile();
+        break;
+    case 5: // 鼠标操作
+        ret = MouseEvent();
+        break;
+    case 6: // 发送屏幕内容-->发送屏幕的截图
+        ret = SendScreen();
+        break;
+    case 7: // 锁机
+        ret = LockMachine();
+        break;
+    case 8: // 解锁
+        ret = UnlockMachine();
+        break;
+    case 1981:
+        ret = TestConnect();
+        break;
+    }
+    return ret;
 }
 
 int main()
@@ -364,60 +406,33 @@ int main()
         }
         else
         {
-            //       CServerSocket* pServer = CServerSocket::getInstance();
-             //       int count = 0;
-             //       if (pServer->InitSocket() == false) {
-             //           MessageBox(NULL, _T("网络初始化失败，未能初始化，请检查网络状态！"), _T("网络初始化失败"), MB_OK | MB_ICONERROR);
-             //           exit(0);
-             //       }
-             //       while (CServerSocket::getInstance() != NULL) {
-             //           
-             //           if (pServer->AcceptClient() == false) {
-             //               if (count++ > 3) {
-					        //	MessageBox(NULL, _T("多次无法正常接入用户，结束程序"), _T("接入用户失败！"), MB_OK | MB_ICONERROR);
-					        //	exit(0);
-					        //}
-             //               MessageBox(NULL, _T("无法正常接入用户，自动重试"), _T("接入用户失败！"), MB_OK | MB_ICONERROR);
-             //           }
-             //           int ret = pServer->DealCommand();
-             //           // TODO: 
-             //       }
-            int nCmd = 7;
-            switch (nCmd)
-            {
-            case 1: // 查看驱动器信息
-                MakeDriverInfo();
-                break;
-            case 2: // 查看指定目录下的文件
-                MakeDirectoryInfo();
-                break;
-            case 3: // 打开指定文件
-                RunFile();
-                break;
-            case 4: // 下载指定文件
-                DownloadFile();
-                break;
-            case 5: // 鼠标操作
-                MouseEvent();
-                break;
-            case 6: // 发送屏幕内容-->发送屏幕的截图
-                SendScreen();
-                break;
-            case 7: // 锁机
-                LockMachine();
-                //Sleep(50);
-                //LockMachine();
-                break;
-            case 8: // 解锁
-                UnlockMachine();
-                break;
+            CServerSocket* pServer = CServerSocket::getInstance();
+            int count = 0;
+            if (pServer->InitSocket() == false) {
+                MessageBox(NULL, _T("网络初始化失败，未能初始化，请检查网络状态！"), _T("网络初始化失败"), MB_OK | MB_ICONERROR);
+                exit(0);
             }
-            Sleep(3000);
-            UnlockMachine();
-            TRACE("m_hWnd = %08X\r\n", dig.m_hWnd);
-            while (dig.m_hWnd != NULL) {
-				Sleep(10);
-			}
+            while (CServerSocket::getInstance() != NULL) {                        
+                if (pServer->AcceptClient() == false) {
+                    if (count >= 3) {
+					    MessageBox(NULL, _T("多次无法正常接入用户，结束程序"), _T("接入用户失败！"), MB_OK | MB_ICONERROR);
+					    exit(0);
+					}
+                    MessageBox(NULL, _T("无法正常接入用户，自动重试"), _T("接入用户失败！"), MB_OK | MB_ICONERROR);
+                    count++;
+                }
+                TRACE("AcceptClient return true\r\n");
+                int ret = pServer->DealCommand();
+                TRACE("DealCommand ret %d\r\n", ret);
+                if (ret > 0) {
+                    ret = ExcuteCommand(ret);
+                    if (ret != 0) {
+                        TRACE("执行命令失败：%d ret=%d\r\n", pServer->GetPacket().sCmd, ret);
+                    }
+                    pServer->CloseClient();
+                    TRACE("Command has done!\r\n");
+                }
+            }
         }
     }
     else
