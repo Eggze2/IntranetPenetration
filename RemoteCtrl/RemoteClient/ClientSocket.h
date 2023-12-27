@@ -136,7 +136,7 @@ public:
 
 	std::string GetErrInfo(int wsaErrCode);
 
-	bool InitSocket(const std::string& strIPAdress) {
+	bool InitSocket(int nIP, int nPort) {
 		if (m_socket != INVALID_SOCKET) CloseSocket();
 		m_socket = socket(PF_INET, SOCK_STREAM, 0);
 		if (m_socket == -1) {
@@ -145,8 +145,9 @@ public:
 		sockaddr_in serv_addr;
 		memset(&serv_addr, 0, sizeof(serv_addr));
 		serv_addr.sin_family = AF_INET;
-		serv_addr.sin_addr.s_addr = inet_addr(strIPAdress.c_str());
-		serv_addr.sin_port = htons(8973);
+		TRACE("addr %08X nIP %08X\r\n", inet_addr("127.0.0.1"), nIP);
+		serv_addr.sin_addr.s_addr = htonl(nIP);
+		serv_addr.sin_port = htons(nPort);
 		if (serv_addr.sin_addr.s_addr == INADDR_NONE) {
 			AfxMessageBox("指定的IP地址不存在!");
 			return false;

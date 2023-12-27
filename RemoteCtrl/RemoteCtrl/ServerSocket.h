@@ -166,7 +166,7 @@ public:
 		{
 			TRACE("内存不足，buffer创建失败！");
 			delete[] buffer;	//释放buffer
-			return -2;
+			return -1;
 		}
 		memset(buffer, 0, BUFFER_SIZE);
 		size_t index = 0;
