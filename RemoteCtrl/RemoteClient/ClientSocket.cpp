@@ -2,11 +2,12 @@
 #include "ClientSocket.h"
 
 CClientSocket* CClientSocket::m_instance = NULL;
+
 CClientSocket::CHelper CClientSocket::m_helper;
 
 CClientSocket* pClient = CClientSocket::getInstance();
 
-std::string GetErrorInfo(int wsaErrCode) {
+std::string CClientSocket::GetErrInfo(int wsaErrCode) {
 	std::string ret;
 	LPVOID lpMsgBuf = NULL;
 	FormatMessage(
@@ -14,7 +15,10 @@ std::string GetErrorInfo(int wsaErrCode) {
 		NULL,
 		wsaErrCode,
 		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-		(LPTSTR)&lpMsgBuf, 0, NULL);
+		(LPTSTR)&lpMsgBuf, 
+		0, 
+		NULL
+	);
 	ret = (char*)lpMsgBuf;
 	LocalFree(lpMsgBuf);
 	return ret;

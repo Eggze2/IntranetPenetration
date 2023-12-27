@@ -13,7 +13,7 @@ public:
 	CPacket() : sHead(0), nLength(0), sCmd(0), sSum(0) {}
 	CPacket(WORD nCmd, const BYTE* pData, size_t nSize) {
 		sHead = 0xFEFF;
-		nLength = nLength + 4;
+		nLength = nSize + 4;
 		sCmd = nCmd;
 		if (nSize > 0) {
 			strData.resize(nSize);
@@ -34,6 +34,16 @@ public:
 		strData = pack.strData;
 		sSum = pack.sSum;
 	}
+	CPacket& operator=(const CPacket& pack) {
+		if (this != &pack) {
+			sHead = pack.sHead;
+			nLength = pack.nLength;
+			sCmd = pack.sCmd;
+			strData = pack.strData;
+			sSum = pack.sSum;
+		}
+		return *this;
+	}
 	CPacket(const BYTE* pData, size_t& nSize) {
 		size_t i = 0;
 		for (; i < nSize; i++) {
@@ -43,22 +53,25 @@ public:
 				break;
 			}
 		}
-		if (i + 4 + 2 + 2 > nSize) {	// 包未完全接受到或包数据不全，解析失败返回
+		if (i + 8 > nSize) {	// 包未完全接受到或包数据不全，解析失败返回
 			nSize = 0;
 			return;
 		}
-		nLength = *(DWORD*)(pData + i); i += 4;
+		nLength = *(DWORD*)(pData + i); 
+		i += 4;
 		if (nLength + i > nSize) {	// 包未完全接受到，解析失败返回
 			nSize = 0;
 			return;
 		}
-		sCmd = *(WORD*)(pData + i);	i += 2;
+		sCmd = *(WORD*)(pData + i); 
+		i += 2;
 		if (nLength > 4) {
-			strData.resize(nLength - 2 - 2);
-			memcpy((void*)strData.c_str(), pData + i, nLength - 2 - 2);
-			i += nLength - 2 - 2;	// 始终让i指向校验和
+			strData.resize(nLength - 4);
+			memcpy((void*)strData.c_str(), pData + i, nLength - 4);
+			i += nLength - 4;	// 始终让i指向校验和
 		}
-		sSum = *(WORD*)(pData + i);	i += 2;
+		sSum = *(WORD*)(pData + i); 
+		i += 2;
 		WORD sum = 0;
 		for (size_t j = 0; j < strData.size(); j++) {
 			sum += BYTE(strData[j]) & 0xFF;
@@ -70,26 +83,20 @@ public:
 		nSize = 0;
 	}
 	~CPacket() {}
-	CPacket& operator=(const CPacket& pack) {
-		if (this != &pack) {
-			sHead = pack.sHead;
-			nLength = pack.nLength;
-			sCmd = pack.sCmd;
-			strData = pack.strData;
-			sSum = pack.sSum;
-		}
-		return *this;
-	}
 	int Size() {	//包数据的大小
 		return nLength + 6;
 	}
 	const char* Data() {
 		strOut.resize(nLength + 6);
 		BYTE* pData = (BYTE*)strOut.c_str();
-		*(WORD*)pData = sHead; pData += 2;
-		*(DWORD*)(pData) = nLength; pData += 4;
-		*(WORD*)pData = sCmd;	 pData += 2;
-		memcpy(pData, strData.c_str(), strData.size()); pData += strData.size();
+		*(WORD*)pData = sHead; 
+		pData += 2;
+		*(DWORD*)(pData) = nLength; 
+		pData += 4;
+		*(WORD*)pData = sCmd;	 
+		pData += 2;
+		memcpy(pData, strData.c_str(), strData.size());
+		pData += strData.size();
 		*(WORD*)pData = sSum;
 		return strOut.c_str();
 	}
@@ -116,8 +123,6 @@ typedef struct MouseEvent {
 	POINT ptXY;		// 鼠标坐标
 }MOUSEEV, * PMOUSEEV;
 
-std::string GetErrorInfo(int wsaErrCode);
-
 class CClientSocket
 {
 public:
@@ -128,19 +133,20 @@ public:
 		}
 		return m_instance;
 	}
+
+	std::string GetErrInfo(int wsaErrCode);
+
 	bool InitSocket(const std::string& strIPAdress) {
 		if (m_socket != INVALID_SOCKET) CloseSocket();
 		m_socket = socket(PF_INET, SOCK_STREAM, 0);
-		if (m_socket == INVALID_SOCKET)
-		{
-			wprintf(L"套接字创建失败\n");
+		if (m_socket == -1) {
 			return false;
 		}
 		sockaddr_in serv_addr;
 		memset(&serv_addr, 0, sizeof(serv_addr));
 		serv_addr.sin_family = AF_INET;
 		serv_addr.sin_addr.s_addr = inet_addr(strIPAdress.c_str());
-		serv_addr.sin_port = htons(9527);
+		serv_addr.sin_port = htons(8973);
 		if (serv_addr.sin_addr.s_addr == INADDR_NONE) {
 			AfxMessageBox("指定的IP地址不存在!");
 			return false;
@@ -148,7 +154,7 @@ public:
 		int ret = connect(m_socket, (SOCKADDR*)&serv_addr, sizeof(serv_addr));
 		if (ret == -1) {
 			AfxMessageBox("连接失败!");
-			TRACE(_T("连接失败：%d %s\r\n"), WSAGetLastError(), GetErrorInfo(WSAGetLastError()).c_str());
+			TRACE(_T("连接失败：%d %s\r\n"), WSAGetLastError(), GetErrInfo(WSAGetLastError()).c_str());
 			return false;
 		}
 		return true;

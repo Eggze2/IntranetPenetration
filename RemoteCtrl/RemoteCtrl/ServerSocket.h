@@ -2,7 +2,6 @@
 
 #include "pch.h"
 #include "framework.h"
-#include <iomanip>
 
 #pragma pack(push)
 #pragma pack(1)
@@ -12,7 +11,7 @@ public:
 	CPacket() : sHead(0), nLength(0), sCmd(0), sSum(0) {}
 	CPacket(WORD nCmd, const BYTE* pData, size_t nSize) {
 		sHead = 0xFEFF;
-		nLength = nLength + 4;
+		nLength = nSize + 4;
 		sCmd = nCmd;
 		if (nSize > 0) {
 			strData.resize(nSize);
@@ -27,12 +26,21 @@ public:
 		}
 	}
 	CPacket(const CPacket& pack) {
-
 		sHead = pack.sHead;
 		nLength = pack.nLength;
 		sCmd = pack.sCmd;
 		strData = pack.strData;
 		sSum = pack.sSum;
+	}
+	CPacket& operator=(const CPacket& pack) {
+		if (this != &pack) {
+			sHead = pack.sHead;
+			nLength = pack.nLength;
+			sCmd = pack.sCmd;
+			strData = pack.strData;
+			sSum = pack.sSum;
+		}
+		return *this;
 	}
 	CPacket(const BYTE* pData, size_t& nSize) {
 		size_t i = 0;
@@ -71,16 +79,6 @@ public:
 		nSize = 0;
 	}
 	~CPacket() {}
-	CPacket& operator=(const CPacket& pack) {
-		if (this != &pack) {
-			sHead = pack.sHead;
-			nLength = pack.nLength;
-			sCmd = pack.sCmd;
-			strData = pack.strData;
-			sSum = pack.sSum;
-		}
-		return *this;
-	}
 
 	int Size() {	//包数据的大小
 		return nLength + 6;
@@ -130,24 +128,21 @@ public:
 		return m_instance;
 	}
 	bool InitSocket() {
-		if (m_socket == INVALID_SOCKET)
+		if (m_socket == -1)
 		{
-			wprintf(L"套接字创建失败\n");
 			return false;
 		}
 		sockaddr_in serv_addr;
 		memset(&serv_addr, 0, sizeof(serv_addr));
 		serv_addr.sin_family = AF_INET;
-		serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-		serv_addr.sin_port = htons(9527);
-		if (bind(m_socket, (SOCKADDR*)&serv_addr, sizeof(serv_addr)) == SOCKET_ERROR)
+		serv_addr.sin_addr.s_addr = INADDR_ANY;
+		serv_addr.sin_port = htons(8973);
+		if (bind(m_socket, (SOCKADDR*)&serv_addr, sizeof(serv_addr)) == -1)
 		{
-			wprintf(L"绑定失败\n");
 			return false;
 		}
-		if (listen(m_socket, 1) == SOCKET_ERROR)
+		if (listen(m_socket, 1) == -1)
 		{
-			wprintf(L"监听失败\n");
 			return false;
 		}
 		return true;
@@ -177,11 +172,11 @@ public:
 		size_t index = 0;
 		while (true) {
 			size_t len = recv(m_client, buffer + index, BUFFER_SIZE - index, 0);
-			TRACE("recv len = %d\r\n", len);
 			if (len <= 0) {
 				delete[] buffer;
 				return -1;
 			}
+			TRACE("recv %d\r\n", len);
 			index += len;
 			len = index;
 			m_packet = CPacket((BYTE*)buffer, len);
@@ -246,7 +241,7 @@ private:
 	CServerSocket() {
 		m_client = INVALID_SOCKET;
 		if (InitSockEnv() == FALSE) {
-			MessageBox(NULL, _T("InitSockEnv() failed! Please check your network settings!"), _T("Init failed!"), MB_OK | MB_ICONERROR);
+			MessageBox(NULL, _T("无法初始化套接字，请检查网络设置！"), _T("初始化错误！"), MB_OK | MB_ICONERROR);
 			exit(0);
 		}
 		m_socket = socket(PF_INET, SOCK_STREAM, 0);

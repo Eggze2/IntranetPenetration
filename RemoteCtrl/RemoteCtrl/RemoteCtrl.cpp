@@ -7,6 +7,11 @@
 #include "ServerSocket.h"
 #include <direct.h>
 #include <atlimage.h>
+#include <stdio.h>
+#include <io.h>
+#include <list>
+#include "LockDialog.h"
+
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -46,10 +51,6 @@ int MakeDriverInfo() {  // 1-->A, 2-->B, 3-->C, ... 26-->Z
     //CServerSocket::getInstance()->Send(pack);
     return 0;
 }
-
-#include <stdio.h>
-#include <io.h>
-#include <list>
 
 typedef struct file_info{
     file_info() {
@@ -159,6 +160,8 @@ int MouseEvent() {
 			break;
         case 4: // 没有按键
             nFlags = 8;
+            break;
+        default:
             break;
         }
         if (nFlags != 8) {
@@ -284,7 +287,6 @@ int SendScreen() {
     return 0;
 }
 
-#include "LockDialog.h"
 CLockDialog dlg;
 unsigned threadId = 0;
 

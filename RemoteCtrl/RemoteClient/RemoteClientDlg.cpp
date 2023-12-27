@@ -154,8 +154,6 @@ HCURSOR CRemoteClientDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
-
-
 void CRemoteClientDlg::OnBnClickedBtnTest()
 {
 	CClientSocket* pClient = CClientSocket::getInstance();
@@ -166,7 +164,7 @@ void CRemoteClientDlg::OnBnClickedBtnTest()
 	}
 	CPacket pack(1981, NULL, 0);
 	ret = pClient->Send(pack);
-	TRACE("Send ret %d\r\n", ret);
+	TRACE("Send ret = %d\r\n", ret);
 	int cmd = pClient->DealCommand();
 	TRACE("ack: %d\r\n", cmd);
 	pClient->CloseSocket();
