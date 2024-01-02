@@ -3,6 +3,8 @@
 #include "pch.h"
 #include "framework.h"
 
+void Dump(BYTE* pData, size_t nSize);
+
 #pragma pack(push)
 #pragma pack(1)
 class CPacket
@@ -87,10 +89,14 @@ public:
 	const char* Data() {
 		strOut.resize(nLength + 6);
 		BYTE* pData = (BYTE*)strOut.c_str();
-		*(WORD*)pData = sHead; pData += 2;
-		*(DWORD*)(pData) = nLength; pData += 4;
-		*(WORD*)pData = sCmd;	 pData += 2;
-		memcpy(pData, strData.c_str(), strData.size()); pData += strData.size();
+		*(WORD*)pData = sHead; 
+		pData += 2;
+		*(DWORD*)(pData) = nLength; 
+		pData += 4;
+		*(WORD*)pData = sCmd;	 
+		pData += 2;
+		memcpy(pData, strData.c_str(), strData.size()); 
+		pData += strData.size();
 		*(WORD*)pData = sSum;
 		return strOut.c_str();
 	}
@@ -115,7 +121,20 @@ typedef struct MouseEvent{
 	WORD nAction;	// 点击、移动、双击
 	WORD nButton;	// 左键、右键、中键
 	POINT ptXY;		// 鼠标坐标
-}MOUSEEV,*PMOUSEEV;
+}MOUSEEV, * PMOUSEEV;
+
+typedef struct file_info {
+	file_info() {
+		IsInvalid = FALSE;
+		IsDirectory = -1;
+		HasNext = TRUE;
+		memset(szFileName, 0, sizeof(szFileName));
+	}
+	BOOL IsInvalid;			// 是否有效 0 无效 1 有效
+	BOOL IsDirectory;		// 是否是目录 0 否 1 是
+	BOOL HasNext;			// 是否有下一个文件 0 否 1 是
+	char szFileName[256];   // 文件名
+}FILEINFO, * PFILEINFO;
 
 class CServerSocket
 {
@@ -136,7 +155,7 @@ public:
 		memset(&serv_addr, 0, sizeof(serv_addr));
 		serv_addr.sin_family = AF_INET;
 		serv_addr.sin_addr.s_addr = INADDR_ANY;
-		serv_addr.sin_port = htons(8973);
+		serv_addr.sin_port = htons(9973);
 		if (bind(m_socket, (SOCKADDR*)&serv_addr, sizeof(serv_addr)) == -1)
 		{
 			return false;
@@ -202,11 +221,12 @@ public:
 		if (m_client == INVALID_SOCKET) {
 			return false;
 		}
+		//Dump((BYTE*)pack.Data(), pack.Size());
 		return send(m_client, pack.Data(), pack.Size(), 0) > 0;
 	}
 
 	bool GetFilePath(std::string & strPath) {
-		if ((m_packet.sCmd >= 2) && (m_packet.sCmd <= 4)) {
+		if ((m_packet.sCmd >= 2) && (m_packet.sCmd <= 4) || m_packet.sCmd == 9) {
 			strPath = m_packet.strData;
 			return true;
 		}
@@ -233,7 +253,7 @@ private:
 	SOCKET m_client;
 	SOCKET m_socket;
 	CPacket m_packet;
-	CServerSocket& operator=(const CServerSocket& server_socket) {}
+	CServerSocket& operator= (const CServerSocket& server_socket) {}
 	CServerSocket(const CServerSocket& server_socket) {
 		m_socket = server_socket.m_socket;
 		m_client = server_socket.m_client;

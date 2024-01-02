@@ -11,7 +11,11 @@
 #include <io.h>
 #include <list>
 #include "LockDialog.h"
-
+#include <iostream>
+#include <filesystem>
+#include <string>
+#include <chrono>
+#include <thread>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -22,6 +26,7 @@
 CWinApp theApp;
 
 using namespace std;
+namespace fs = std::filesystem;
 
 void Dump(BYTE* pData, size_t nSize) {
     std::string strOut;
@@ -52,56 +57,61 @@ int MakeDriverInfo() {  // 1-->A, 2-->B, 3-->C, ... 26-->Z
     return 0;
 }
 
-typedef struct file_info{
-    file_info() {
-        IsInvalid = FALSE;
-        IsDirectory = -1;
-        HasNext = TRUE;
-        memset(szFileName, 0, sizeof(szFileName));
-    }
-    BOOL IsInvalid;    // 是否有效 0 无效 1 有效
-    BOOL IsDirectory;   // 是否是目录 0 否 1 是
-    BOOL HasNext;       // 是否有下一个文件 0 否 1 是
-    char szFileName[256]; // 文件名
-}FILEINFO, *PFILEINFO;
+void OutputDebugStringAtoW(const char* mbString) {
+    // 计算所需的宽字符字符串长度
+    int len = MultiByteToWideChar(CP_ACP, 0, mbString, -1, NULL, 0);
+
+    // 分配所需大小的宽字符字符串
+    wchar_t* wString = new wchar_t[len];
+
+    // 执行转换
+    MultiByteToWideChar(CP_ACP, 0, mbString, -1, wString, len);
+
+    // 使用转换后的字符串
+    OutputDebugStringW(wString);
+
+    // 释放分配的内存
+    delete[] wString;
+}
 
 int MakeDirectoryInfo() {
     std::string strPath;
-    //std::list<FILEINFO> lstFileInfos;
     if (CServerSocket::getInstance()->GetFilePath(strPath) == false) {
         OutputDebugString(_T("当前的命令，不是获取文件列表，命令解析错误！"));
         return -1;
     }
-    if (_chdir(strPath.c_str()) != 0) {
+
+    try {
+        if (!fs::exists(strPath) || !fs::is_directory(strPath)) {
+            OutputDebugString(_T("没有权限访问目录！\r\n"));
+            FILEINFO finfo;
+            finfo.HasNext = FALSE;
+            CPacket pack(2, (BYTE*)&finfo, sizeof(finfo));
+            CServerSocket::getInstance()->Send(pack);
+            return -2;
+        }
+
+        for (const auto& entry : fs::directory_iterator(strPath)) {
+            FILEINFO finfo;
+            finfo.IsDirectory = fs::is_directory(entry.status());
+            strcpy_s(finfo.szFileName, entry.path().filename().string().c_str());
+            TRACE("file name: %s \r\n", finfo.szFileName);
+            CPacket pack(2, (BYTE*)&finfo, sizeof(finfo));
+            CServerSocket::getInstance()->Send(pack);
+
+            // 等待100毫秒
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
         FILEINFO finfo;
-        finfo.IsInvalid = TRUE;
-        finfo.IsDirectory = TRUE;
         finfo.HasNext = FALSE;
-        memcpy(finfo.szFileName, strPath.c_str(), strPath.size());
-        //lstFileInfos.push_back(finfo);
         CPacket pack(2, (BYTE*)&finfo, sizeof(finfo));
         CServerSocket::getInstance()->Send(pack);
-        OutputDebugString(_T("没有权限访问目录！"));
-        return -2;
     }
-    _finddata_t fdata;
-    int hfind = 0;
-    if ((hfind = _findfirst("*", &fdata)) == -1) {
-        OutputDebugString(_T("没有找到任何文件！"));
+    catch (const fs::filesystem_error& e) {
+        OutputDebugStringAtoW(e.what());
         return -3;
     }
-    do {
-        FILEINFO finfo;
-        finfo.IsDirectory = (fdata.attrib & _A_SUBDIR) != 0;
-        memcpy(finfo.szFileName, fdata.name, strlen(fdata.name));
-        //lstFileInfos.push_back(finfo);
-        CPacket pack(2, (BYTE*)&finfo, sizeof(finfo));
-        CServerSocket::getInstance()->Send(pack);
-	} while (!_findnext(hfind, &fdata));
-    FILEINFO finfo;
-    finfo.HasNext = FALSE;
-    CPacket pack(2, (BYTE*)&finfo, sizeof(finfo));
-    CServerSocket::getInstance()->Send(pack);
     return 0;
 }
 
@@ -299,9 +309,9 @@ unsigned __stdcall threadLockDlg(void* arg) {
     rect.top = 0;
     rect.right = GetSystemMetrics(SM_CXFULLSCREEN);
     rect.bottom = GetSystemMetrics(SM_CYFULLSCREEN);
-    rect.bottom *= 1.04;
-    dlg.MoveWindow(rect);
-    dlg.SetWindowPos(&dlg.wndTopMost, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+    rect.bottom = LONG(rect.bottom * 1.04);
+    //dlg.MoveWindow(rect);
+    //dlg.SetWindowPos(&dlg.wndTopMost, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
     // 限制鼠标功能
     ShowCursor(false);
     // 隐藏任务栏
