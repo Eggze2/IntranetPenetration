@@ -20,15 +20,15 @@ class CAboutDlg : public CDialogEx
 public:
 	CAboutDlg();
 
-// 对话框数据
+	// 对话框数据
 #ifdef AFX_DESIGN_TIME
 	enum { IDD = IDD_ABOUTBOX };
 #endif
 
-	protected:
+protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV 支持
 
-// 实现
+	// 实现
 protected:
 	DECLARE_MESSAGE_MAP()
 };
@@ -270,6 +270,7 @@ void CRemoteClientDlg::LoadFileInfo()
 	int nCmd = SendCommandPacket(2, false, (BYTE*)(LPCTSTR)strPath, strPath.GetLength());
 	CClientSocket* pClient = CClientSocket::getInstance();
 	PFILEINFO pInfo = (PFILEINFO)CClientSocket::getInstance()->GetPacket().strData.c_str();
+	int count = 0;
 	while (pInfo->HasNext) {
 		TRACE("[%s] isdir %d\r\n", pInfo->szFileName, pInfo->IsDirectory);
 		if (pInfo->IsDirectory) {
@@ -286,12 +287,14 @@ void CRemoteClientDlg::LoadFileInfo()
 		else {
 			m_List.InsertItem(0, pInfo->szFileName);
 		}
+		count++;
 		int cmd = pClient->DealCommand();
-		TRACE("ack: %d\r\n", cmd);
+		//TRACE("ack: %d\r\n", cmd);
 		if (cmd < 0) break;
 		pInfo = (PFILEINFO)CClientSocket::getInstance()->GetPacket().strData.c_str();
 	}
 	pClient->CloseSocket();
+	TRACE("client: count = %d\r\n", count);
 }
 
 CString CRemoteClientDlg::GetPath(HTREEITEM hTree) {
@@ -352,9 +355,9 @@ void CRemoteClientDlg::OnNMRClickListFile(NMHDR* pNMHDR, LRESULT* pResult)
 void CRemoteClientDlg::OnDownloadFile()
 {
 	int nListSelected = m_List.GetSelectionMark();
-	CString strFile = m_List.GetItemText(nListSelected, 0);	
-	CFileDialog dlg(FALSE, NULL, 
-		strFile, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, 
+	CString strFile = m_List.GetItemText(nListSelected, 0);
+	CFileDialog dlg(FALSE, NULL,
+		strFile, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,
 		NULL, this);
 	if (dlg.DoModal() == IDOK) {
 		FILE* pFile = fopen(dlg.GetPathName(), "wb+");

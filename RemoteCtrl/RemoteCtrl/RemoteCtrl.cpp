@@ -80,7 +80,7 @@ int MakeDirectoryInfo() {
         OutputDebugString(_T("当前的命令，不是获取文件列表，命令解析错误！"));
         return -1;
     }
-
+    int count = 0;
     try {
         if (!fs::exists(strPath) || !fs::is_directory(strPath)) {
             OutputDebugString(_T("没有权限访问目录！\r\n"));
@@ -98,11 +98,11 @@ int MakeDirectoryInfo() {
             TRACE("file name: %s \r\n", finfo.szFileName);
             CPacket pack(2, (BYTE*)&finfo, sizeof(finfo));
             CServerSocket::getInstance()->Send(pack);
-
+            count++;
             // 等待1毫秒
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            //std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
-
+        TRACE("server: count = %d\r\n", count);
         FILEINFO finfo;
         finfo.HasNext = FALSE;
         CPacket pack(2, (BYTE*)&finfo, sizeof(finfo));

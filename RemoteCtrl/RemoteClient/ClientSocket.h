@@ -135,7 +135,7 @@ typedef struct file_info {
 	BOOL HasNext;       // 是否有下一个文件 0 否 1 是
 	char szFileName[256]; // 文件名
 }FILEINFO, * PFILEINFO;
-
+void Dump(BYTE* pData, size_t nSize);
 class CClientSocket
 {
 public:
@@ -177,18 +177,18 @@ public:
 	int DealCommand() {
 		if (m_socket == INVALID_SOCKET) return -1;
 		char* buffer = m_buffer.data();
-		memset(buffer, 0, BUFFER_SIZE);
-		size_t index = 0;
+		static size_t index = 0;
 		while (true) {
 			size_t len = recv(m_socket, buffer + index, BUFFER_SIZE - index, 0);
-			if (len <= 0) {
+			if ((len <= 0) && (index == 0)) {
 				return -1;
 			}
+			//Dump((BYTE*)buffer, index);
 			index += len;
 			len = index;
 			m_packet = CPacket((BYTE*)buffer, len);
 			if (len > 0) {
-				memmove(buffer, buffer + len, BUFFER_SIZE - len);
+				memmove(buffer, buffer + len, index - len);
 				index -= len;
 				return m_packet.sCmd;
 			}
@@ -245,10 +245,12 @@ private:
 	}
 	CClientSocket() {
 		if (InitSockEnv() == FALSE) {
-			MessageBox(NULL, _T("InitSockEnv() failed! Please check your network settings!"), _T("Init failed!"), MB_OK | MB_ICONERROR);
+			MessageBox(NULL, _T("InitSockEnv() failed! Please check your network settings!"), _T("Init failed!"), 
+				MB_OK | MB_ICONERROR);
 			exit(0);
 		}
 		m_buffer.resize(BUFFER_SIZE);
+		memset(m_buffer.data(), 0, BUFFER_SIZE);
 	}
 	~CClientSocket() {
 		closesocket(m_socket);
