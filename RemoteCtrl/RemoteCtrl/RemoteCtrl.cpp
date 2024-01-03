@@ -139,6 +139,7 @@ int DownloadFile() {
         fseek(pFile, 0, SEEK_END);
         data = _ftelli64(pFile);
         CPacket head(4, (BYTE*)&data, 8);
+        CServerSocket::getInstance()->Send(head);
         fseek(pFile, 0, SEEK_SET);
         char buffer[1024] = "";
         size_t rlen = 0;
@@ -170,8 +171,6 @@ int MouseEvent() {
 			break;
         case 4: // 没有按键
             nFlags = 8;
-            break;
-        default:
             break;
         }
         if (nFlags != 8) {
