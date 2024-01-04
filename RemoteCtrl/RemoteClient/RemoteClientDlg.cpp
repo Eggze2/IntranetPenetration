@@ -7,6 +7,7 @@
 #include "RemoteClient.h"
 #include "RemoteClientDlg.h"
 #include "afxdialogex.h"
+#include "WatchDialog.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -100,6 +101,8 @@ BEGIN_MESSAGE_MAP(CRemoteClientDlg, CDialogEx)
 	ON_COMMAND(ID_DELETE_FILE, &CRemoteClientDlg::OnDeleteFile)
 	ON_COMMAND(ID_RUN_FILE, &CRemoteClientDlg::OnRunFile)
 	ON_MESSAGE(WM_SEND_PACKET, &CRemoteClientDlg::OnSendPacket)
+	ON_BN_CLICKED(IDC_BTN_START_WATCH, &CRemoteClientDlg::OnBnClickedBtnStartWatch)
+	ON_WM_TIMER()
 END_MESSAGE_MAP()
 
 
@@ -247,17 +250,31 @@ void CRemoteClientDlg::threadWatchData()
 	CClientSocket* pClient = NULL;
 	do {
 		CClientSocket* pClient = CClientSocket::getInstance();
-	} while (pClient == NULL);	//直到pClient得到值才退出,防止网络状态不好连接缓慢
-	for (;;) {	// = while(true)
+	} while (pClient == NULL);	// 直到pClient得到值才退出,防止网络状态不好连接缓慢
+	for (;;) {	// 等价于while(true)
 		CPacket pack(6, NULL, 0);
 		int ret = pClient->Send(pack);
-		if (ret) {	//没有发送成功就再次发送，发送成功就继续
+		if (ret) {	// 没有发送成功就再次发送，发送成功就继续
 			int cmd = pClient->DealCommand();
 			if (cmd == 6) {
-				if (m_isFull == false) {
-					BYTE* pData = (BYTE*)pClient->GetPacket().strData.c_str();	//获得数据，放入缓存中	
-					m_isFull = true;	//修改状态
-					// TODO：存入IMAGE
+				if (m_isFull == false) {	// 更新数据到缓存
+					BYTE* pData = (BYTE*)pClient->GetPacket().strData.c_str();
+					HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, 0);
+					if (hMem == NULL) {
+						TRACE("内存不足");
+						Sleep(1);
+						continue;
+					}
+					IStream* pStream = NULL;
+					HRESULT hRet = CreateStreamOnHGlobal(hMem, TRUE, &pStream);
+					if (hRet == S_OK) {
+						ULONG length = 0;
+						pStream->Write(pData, pClient->GetPacket().strData.size(), &length);
+						LARGE_INTEGER bg = { 0 };
+						pStream->Seek(bg, STREAM_SEEK_SET, NULL);
+						m_image.Load(pStream);
+						m_isFull = true;
+					}					
 				}
 			}
 		}
@@ -493,4 +510,21 @@ LRESULT CRemoteClientDlg::OnSendPacket(WPARAM wParam, LPARAM lParam)
 	CString strFile = (LPCSTR)lParam;
 	int ret = SendCommandPacket(wParam >> 1, wParam & 1, (BYTE*)(LPCTSTR)strFile, strFile.GetLength());
 	return ret;
+}
+
+
+void CRemoteClientDlg::OnBnClickedBtnStartWatch()
+{
+	_beginthread(CRemoteClientDlg::threadEntryForWatchData, 0, this);
+	GetDlgItem(IDC_BTN_START_WATCH)->EnableWindow(FALSE);	// 点击一次后禁用窗口,防止创建多个线程
+	CWatchDialog dlg(this);	// 传了父类参数，可以直接使用父类的成员
+	dlg.DoModal();	// 调用模式对话框并在完成后返回
+}
+
+
+void CRemoteClientDlg::OnTimer(UINT_PTR nIDEvent)
+{
+	// TODO: 在此添加消息处理程序代码和/或调用默认值
+
+	CDialogEx::OnTimer(nIDEvent);
 }
