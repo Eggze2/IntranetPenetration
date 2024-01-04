@@ -7,11 +7,11 @@
 #include "RemoteClient.h"
 #include "RemoteClientDlg.h"
 #include "afxdialogex.h"
-#include "WatchDialog.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
+#include "WatchDialog.h"
 
 
 // 用于应用程序“关于”菜单项的 CAboutDlg 对话框
@@ -247,40 +247,39 @@ void CRemoteClientDlg::threadEntryForWatchData(void* arg)
 
 void CRemoteClientDlg::threadWatchData()
 {
+	Sleep(50);
 	CClientSocket* pClient = NULL;
 	do {
-		CClientSocket* pClient = CClientSocket::getInstance();
+		pClient = CClientSocket::getInstance();
 	} while (pClient == NULL);	// 直到pClient得到值才退出,防止网络状态不好连接缓慢
+	ULONGLONG tick = GetTickCount64();
 	for (;;) {	// 等价于while(true)
-		CPacket pack(6, NULL, 0);
-		int ret = pClient->Send(pack);
-		if (ret) {	// 没有发送成功就再次发送，发送成功就继续
-			int cmd = pClient->DealCommand();
-			if (cmd == 6) {
-				if (m_isFull == false) {	// 更新数据到缓存
-					BYTE* pData = (BYTE*)pClient->GetPacket().strData.c_str();
-					HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, 0);
-					if (hMem == NULL) {
-						TRACE("内存不足");
-						Sleep(1);
-						continue;
-					}
-					IStream* pStream = NULL;
-					HRESULT hRet = CreateStreamOnHGlobal(hMem, TRUE, &pStream);
-					if (hRet == S_OK) {
-						ULONG length = 0;
-						pStream->Write(pData, pClient->GetPacket().strData.size(), &length);
-						LARGE_INTEGER bg = { 0 };
-						pStream->Seek(bg, STREAM_SEEK_SET, NULL);
-						m_image.Load(pStream);
-						m_isFull = true;
-					}					
+		if (m_isFull == false) {	// 更新数据到缓存
+			int ret = SendMessage(WM_SEND_PACKET, 6 << 1 | 1);
+			if (ret == 6) {	// 没有发送成功就再次发送，发送成功就继续
+				BYTE* pData = (BYTE*)pClient->GetPacket().strData.c_str();
+				HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, 0);
+				if (hMem == NULL) {
+					TRACE("内存不足");
+					Sleep(1);
+					continue;
+				}
+				IStream* pStream = NULL;
+				HRESULT hRet = CreateStreamOnHGlobal(hMem, TRUE, &pStream);
+				if (hRet == S_OK) {
+					ULONG length = 0;
+					pStream->Write(pData, pClient->GetPacket().strData.size(), &length);
+					LARGE_INTEGER bg = { 0 };
+					pStream->Seek(bg, STREAM_SEEK_SET, NULL);
+					m_image.Load(pStream);
+					m_isFull = true;
 				}
 			}
+			else {
+				Sleep(1);
+			}
 		}
-		else {
-			Sleep(1);//可能会出现死机，允许cpu去处理其他程序
-		}
+		else Sleep(1);
 	}
 }
 
@@ -507,17 +506,35 @@ void CRemoteClientDlg::OnRunFile()
 
 LRESULT CRemoteClientDlg::OnSendPacket(WPARAM wParam, LPARAM lParam)
 {
-	CString strFile = (LPCSTR)lParam;
-	int ret = SendCommandPacket(wParam >> 1, wParam & 1, (BYTE*)(LPCTSTR)strFile, strFile.GetLength());
+	int ret = 0;
+	int cmd = wParam >> 1;
+	switch (cmd) {
+	case 4:
+		{
+			CString strFile = (LPCSTR)lParam;
+			ret = SendCommandPacket(cmd, wParam & 1, (BYTE*)(LPCSTR)strFile, strFile.GetLength());
+			break;
+		}
+	case 6:
+		{
+			ret = SendCommandPacket(cmd, wParam & 1);
+			break;
+		}
+	default:
+		{
+			ret = -1;
+			break;
+		}
+	}	
 	return ret;
 }
 
 
 void CRemoteClientDlg::OnBnClickedBtnStartWatch()
 {
+	CWatchDialog dlg(this);	// 传了父类参数，可以直接使用父类的成员
 	_beginthread(CRemoteClientDlg::threadEntryForWatchData, 0, this);
 	GetDlgItem(IDC_BTN_START_WATCH)->EnableWindow(FALSE);	// 点击一次后禁用窗口,防止创建多个线程
-	CWatchDialog dlg(this);	// 传了父类参数，可以直接使用父类的成员
 	dlg.DoModal();	// 调用模式对话框并在完成后返回
 }
 
