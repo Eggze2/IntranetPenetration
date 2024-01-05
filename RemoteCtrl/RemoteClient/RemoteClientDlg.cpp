@@ -253,7 +253,7 @@ void CRemoteClientDlg::threadWatchData()
 		pClient = CClientSocket::getInstance();
 	} while (pClient == NULL);	// 直到pClient得到值才退出,防止网络状态不好连接缓慢
 	ULONGLONG tick = GetTickCount64();
-	for (;;) {	// 等价于while(true)
+	while(!m_isClosed) {	// 等价于while(true)
 		if (m_isFull == false) {	// 更新数据到缓存
 			int ret = SendMessage(WM_SEND_PACKET, 6 << 1 | 1);
 			if (ret == 6) {	// 没有发送成功就再次发送，发送成功就继续
@@ -271,6 +271,7 @@ void CRemoteClientDlg::threadWatchData()
 					pStream->Write(pData, pClient->GetPacket().strData.size(), &length);
 					LARGE_INTEGER bg = { 0 };
 					pStream->Seek(bg, STREAM_SEEK_SET, NULL);
+					if ((HBITMAP)m_image != NULL) m_image.Destroy();
 					m_image.Load(pStream);
 					m_isFull = true;
 				}
@@ -513,6 +514,11 @@ LRESULT CRemoteClientDlg::OnSendPacket(WPARAM wParam, LPARAM lParam)
 			ret = SendCommandPacket(cmd, wParam & 1, (BYTE*)(LPCSTR)strFile, strFile.GetLength());
 			break;
 		}
+	case 5:
+		{
+			ret = SendCommandPacket(cmd, wParam & 1, (BYTE*)lParam, sizeof(MOUSEEV));
+			break;
+		}
 	case 6:
 		{
 			ret = SendCommandPacket(cmd, wParam & 1);
@@ -530,10 +536,13 @@ LRESULT CRemoteClientDlg::OnSendPacket(WPARAM wParam, LPARAM lParam)
 
 void CRemoteClientDlg::OnBnClickedBtnStartWatch()
 {
+	m_isClosed = false;
 	CWatchDialog dlg(this);	// 传了父类参数，可以直接使用父类的成员
-	_beginthread(CRemoteClientDlg::threadEntryForWatchData, 0, this);
-	GetDlgItem(IDC_BTN_START_WATCH)->EnableWindow(FALSE);	// 点击一次后禁用窗口,防止创建多个线程
+	HANDLE hThread = (HANDLE)_beginthread(CRemoteClientDlg::threadEntryForWatchData, 0, this);
+	//GetDlgItem(IDC_BTN_START_WATCH)->EnableWindow(FALSE);	// 点击一次后禁用窗口,防止创建多个线程
 	dlg.DoModal();	// 调用模式对话框并在完成后返回
+	m_isClosed = true;
+	WaitForSingleObject(hThread, 500);
 }
 
 
