@@ -275,9 +275,7 @@ void CRemoteClientDlg::threadWatchData()
 					m_isFull = true;
 				}
 			}
-			else {
-				Sleep(1);
-			}
+			else Sleep(1);
 		}
 		else Sleep(1);
 	}
