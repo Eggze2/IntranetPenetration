@@ -139,7 +139,7 @@ BOOL CRemoteClientDlg::OnInitDialog()
 
 	// TODO: 在此添加额外的初始化代码
 	UpdateData();
-	m_server_address = 0x7F000001;
+	m_server_address = 0xC0A832E2;
 	m_nPort = _T("9973");
 	UpdateData(FALSE);
 	m_dlgStatus.Create(IDD_DLG_STATUS, this);
@@ -520,6 +520,8 @@ LRESULT CRemoteClientDlg::OnSendPacket(WPARAM wParam, LPARAM lParam)
 			break;
 		}
 	case 6:
+	case 7:
+	case 8:
 		{
 			ret = SendCommandPacket(cmd, wParam & 1);
 			break;
@@ -541,7 +543,7 @@ void CRemoteClientDlg::OnBnClickedBtnStartWatch()
 	HANDLE hThread = (HANDLE)_beginthread(CRemoteClientDlg::threadEntryForWatchData, 0, this);
 	//GetDlgItem(IDC_BTN_START_WATCH)->EnableWindow(FALSE);	// 点击一次后禁用窗口,防止创建多个线程
 	dlg.DoModal();	// 调用模式对话框并在完成后返回
-	m_isClosed = true;
+	m_isClosed = true;  
 	WaitForSingleObject(hThread, 500);
 }
 
